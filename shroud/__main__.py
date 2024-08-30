@@ -27,27 +27,40 @@ app = App(token=SLACK_BOT_TOKEN, raise_error_for_unhandled_request=True)
 
 # https://api.slack.com/events/message.im
 @app.event("message")
-def handle_message(event, say: Say, client):
+def handle_message(event, say: Say, client: WebClient):
     if event.get("channel_type") == "im":
-        print(event)
-        text = event["text"]
+        # print(event)
         user = event["user"]
-        if re.match(r"hello", text, re.IGNORECASE):
-            say(f"Hello, <@{user}>!")
-            forwarded_ts = forward_to_channel(event, client)
-            save_message_mapping(event["ts"], forwarded_ts)
+        say(f"Hello, <@{user}>!")
+        forwarded_ts = forward_to_channel(event, client)
+        save_message_mapping(event["ts"], forwarded_ts, event["channel"])
+        say("Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.")
     elif event.get("channel_type") == "group" or event.get("channel_type") == "channel":
         if event.get("thread_ts", None) is not None:
-            say("You sent a message in this thread", thread_ts=event["thread_ts"])
+            try:
+                with open("message_mapping.json", "r") as f:
+                    data = json.load(f)
+            except FileNotFoundError:
+                say("JSON file not found")
+                return
+            for k, v in data.items():
+                if data[k]["forwarded_ts"] == event["thread_ts"]:
+                    to_send = f"<@{event['user']}>: {event['text']}"
+                    client.chat_postMessage(channel=data[k]["dm_channel"], text=to_send, thread_ts=k)
+                    break
+            else:
+                say("No message found")
+        else:
+            print("Ignoring message as it's not a reply")
 
 
-def save_message_mapping(ts, forwarded_ts):
+def save_message_mapping(ts, forwarded_ts, dm_channel) -> None:
     try: 
         with open("message_mapping.json", "r") as f:
             data = json.load(f)
     except FileNotFoundError:
         data = {}
-    data[ts] = forwarded_ts
+    data[ts] = {"forwarded_ts": forwarded_ts, "dm_channel": dm_channel}
     with open("message_mapping.json", "w") as f:
         json.dump(data, f)
 
