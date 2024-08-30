@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "shroud"
+version = "0.1.0"
+description = ""
+authors = ["Angad Behl <angad@angad.me>"]
+# readme = "README.md"
+packages = [{ include = "shroud" }]
+scripts = { shroud = "shroud.__main__:main" }
+include = ["manifest.yml"]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+python-dotenv = "^1.0.1"
+slack-bolt = "^1.20.0"
+dynaconf = "^3.2.6"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.6.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

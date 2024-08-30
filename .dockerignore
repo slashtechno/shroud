@@ -1,0 +1,15 @@
+.secrets.toml
+settings.toml
+
+# Ignore Python cache files
+__pycache__/
+
+# Ignore git history
+.git
+
+# Ignore all .env files
+*.env
+
+# Ignore virtual environments
+*venv/
+docker-compose.yml
