@@ -1,5 +1,5 @@
 from dynaconf import Dynaconf, Validator
-
+import re
 settings = Dynaconf(
     envvar_prefix="SHROUD",
     load_dotenv=True,
@@ -20,6 +20,14 @@ settings.validators.register(
             condition=lambda x: x.startswith("xapp-"),
             messages={"condition": "Must start with 'xapp-'"},
         ),
+        Validator(
+            "channel",
+            must_exist=True,
+            condition=lambda x: re.match(r'^C[A-Z0-9]{10}$', x) is not None,
+            messages={"condition": "Must look like C123ABC456"},
+            default="C07JX2TK0UX",
+        )
+
     ],
 )
 

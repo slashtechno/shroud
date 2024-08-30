@@ -1,5 +1,6 @@
 import dotenv
 import re
+import json
 # import yaml
 # import importlib.resources
 
@@ -25,14 +26,18 @@ app = App(token=SLACK_BOT_TOKEN, raise_error_for_unhandled_request=True)
 
 # https://api.slack.com/events/message.im
 @app.event("message")
-def handle_message_im(event, say):
+def handle_message_im(event, say, client):
     if event.get("channel_type") == "im":
         print(event)
         text = event["text"]
         user = event["user"]
         if re.match(r"hello", text, re.IGNORECASE):
             say(f"Hello, <@{user}>!")
+            forward_to_channel(event, client)
 
+
+def forward_to_channel(event, client: WebClient):
+    client.chat_postMessage(channel=settings.channel, text=event["text"])
 
 
 
