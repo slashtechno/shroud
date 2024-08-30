@@ -12,6 +12,7 @@ from slack_sdk.web.client import WebClient
 
 # Types
 from slack_bolt.context.respond import Respond
+from slack_bolt.context.say import Say
 from slack_sdk.errors import SlackApiError
 # To avoid a log message about unhandled requests
 from slack_bolt.error import BoltUnhandledRequestError
@@ -26,20 +27,58 @@ app = App(token=SLACK_BOT_TOKEN, raise_error_for_unhandled_request=True)
 
 # https://api.slack.com/events/message.im
 @app.event("message")
-def handle_message_im(event, say, client):
+def handle_message(event, say: Say, client):
     if event.get("channel_type") == "im":
         print(event)
         text = event["text"]
         user = event["user"]
         if re.match(r"hello", text, re.IGNORECASE):
             say(f"Hello, <@{user}>!")
-            forward_to_channel(event, client)
+            forwarded_ts = forward_to_channel(event, client)
+            save_message_mapping(event["ts"], forwarded_ts)
+    elif event.get("channel_type") == "group" or event.get("channel_type") == "channel":
+        if event.get("thread_ts", None) is not None:
+            say("You sent a message in this thread", thread_ts=event["thread_ts"])
 
 
-def forward_to_channel(event, client: WebClient):
-    client.chat_postMessage(channel=settings.channel, text=event["text"])
+def save_message_mapping(ts, forwarded_ts):
+    try: 
+        with open("message_mapping.json", "r") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = {}
+    data[ts] = forwarded_ts
+    with open("message_mapping.json", "w") as f:
+        json.dump(data, f)
+
+def forward_to_channel(event, client: WebClient) -> str:
+    resp = client.chat_postMessage(channel=settings.channel, text=event["text"])
+    return resp.data["ts"]
 
 
+# https://github.com/slackapi/bolt-python/issues/299#issuecomment-823590042
+@app.error
+def handle_errors(error, body, respond: Respond):
+    if isinstance(error, BoltUnhandledRequestError):
+        return BoltResponse(status=200, body="")
+    else:
+        print(f"Error: {str(error)}")
+        try:
+            respond(
+                "Something went wrong. If this persists, please contact <@U075RTSLDQ8>."
+            )
+        except SlackApiError as e:
+            print(f"Error sending message: {e.response['error']}")
+        return BoltResponse(status=500, body="Something Wrong")
+
+
+def main():
+    global app
+    SocketModeHandler(app, SLACK_APP_TOKEN).start()
+
+
+if __name__ == "__main__":
+    main()
 
 # @app.command("/shroud-help")
 # def help_command(ack, respond: Respond):
@@ -79,27 +118,3 @@ def forward_to_channel(event, client: WebClient):
 #             help_text += f"\n{global_shortcuts_text}"
     
 #     respond(help_text)
-
-# https://github.com/slackapi/bolt-python/issues/299#issuecomment-823590042
-@app.error
-def handle_errors(error, body, respond: Respond):
-    if isinstance(error, BoltUnhandledRequestError):
-        return BoltResponse(status=200, body="")
-    else:
-        print(f"Error: {str(error)}")
-        try:
-            respond(
-                "Something went wrong. If this persists, please contact <@U075RTSLDQ8>."
-            )
-        except SlackApiError as e:
-            print(f"Error sending message: {e.response['error']}")
-        return BoltResponse(status=500, body="Something Wrong")
-
-
-def main():
-    global app
-    SocketModeHandler(app, SLACK_APP_TOKEN).start()
-
-
-if __name__ == "__main__":
-    main()
