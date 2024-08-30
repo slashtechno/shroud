@@ -27,29 +27,36 @@ app = App(token=SLACK_BOT_TOKEN, raise_error_for_unhandled_request=True)
 
 # https://api.slack.com/events/message.im
 @app.event("message")
-def handle_message(event, say: Say, client: WebClient):
+def handle_message(event, say: Say, client: WebClient, respond: Respond):
+    try:
+        with open("message_mapping.json", "r") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        say("JSON file not found")
+        return
     if event.get("channel_type") == "im":
-        # print(event)
-        user = event["user"]
-        say(f"Hello, <@{user}>!")
-        forwarded_ts = forward_to_channel(event, client)
-        save_message_mapping(event["ts"], forwarded_ts, event["channel"])
-        say("Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.")
+        if event.get("thread_ts", None) is not None:
+            # Find where to forward the message  
+            for k, v in data.items():
+                if k == event["thread_ts"]:
+                    to_send = f"{event['text']}"
+                    client.chat_postMessage(channel=settings.channel, text=to_send, thread_ts=data[k]["forwarded_ts"])
+                    break
+            else:
+                respond("No message found", response_type="ephemeral")
+        else:
+            forwarded_ts = forward_to_channel(event, client)
+            save_message_mapping(event["ts"], forwarded_ts, event["channel"])
+            respond("Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.", response_type="ephemeral")
     elif event.get("channel_type") == "group" or event.get("channel_type") == "channel":
         if event.get("thread_ts", None) is not None:
-            try:
-                with open("message_mapping.json", "r") as f:
-                    data = json.load(f)
-            except FileNotFoundError:
-                say("JSON file not found")
-                return
             for k, v in data.items():
                 if data[k]["forwarded_ts"] == event["thread_ts"]:
                     to_send = f"<@{event['user']}>: {event['text']}"
                     client.chat_postMessage(channel=data[k]["dm_channel"], text=to_send, thread_ts=k)
                     break
             else:
-                say("No message found")
+                respond("No message found", response_type="ephemeral")
         else:
             print("Ignoring message as it's not a reply")
 
@@ -64,8 +71,8 @@ def save_message_mapping(ts, forwarded_ts, dm_channel) -> None:
     with open("message_mapping.json", "w") as f:
         json.dump(data, f)
 
-def forward_to_channel(event, client: WebClient) -> str:
-    resp = client.chat_postMessage(channel=settings.channel, text=event["text"])
+def forward_to_channel(event, client: WebClient, thread_ts=None) -> str:
+    resp = client.chat_postMessage(channel=settings.channel, text=event["text"], thread_ts=thread_ts)
     return resp.data["ts"]
 
 
