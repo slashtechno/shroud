@@ -6,6 +6,13 @@ features:
   bot_user:
     display_name: Shroud
     always_online: false
+  slash_commands:
+    - command: /shroud-clean-db
+      description: Clean database
+      should_escape: false
+    - command: /shroud-help
+      description: List commands and shortcuts
+      should_escape: false
 oauth_config:
   scopes:
     bot:
@@ -16,6 +23,7 @@ oauth_config:
       - im:history
       - chat:write.customize
       - users:read
+      - commands
 settings:
   event_subscriptions:
     bot_events:

@@ -1,8 +1,6 @@
 import dotenv
-import re
-import json
-# import yaml
-# import importlib.resources
+import yaml
+import importlib.resources
 
 # Slack imports
 from slack_bolt import App, BoltResponse
@@ -90,6 +88,13 @@ def forward_to_channel(event, client: WebClient, thread_ts=None) -> str:
     resp = client.chat_postMessage(channel=settings.channel, text=event["text"], thread_ts=thread_ts)
     return resp.data["ts"]
 
+@app.command("/shroud-clean-db")
+def clean_db(ack, respond: Respond, client: WebClient):
+    print("Cleaning database")
+    ack()
+    db.clean_database(client)
+    respond("Removed any records where the DM or the forwarded message no longer exists.")
+    print("Cleaned database")   
 
 # https://github.com/slackapi/bolt-python/issues/299#issuecomment-823590042
 @app.error
@@ -106,6 +111,44 @@ def handle_errors(error, body, respond: Respond):
             print(f"Error sending message: {e.response['error']}")
         return BoltResponse(status=500, body="Something Wrong")
 
+@app.command("/shroud-help")
+def help_command(ack, respond: Respond):
+    ack()
+    manifest_path = importlib.resources.files(__package__).parent / "manifest.yml"
+    with open(manifest_path, "r") as f:
+        features = yaml.safe_load(f)["features"]
+
+    help_text = "Commands:"
+    slash_commands = features.get("slash_commands", [])
+    for command in slash_commands:
+        try:
+            help_text += f"\n`{command['command']} {command['usage_hint']}`: {command['description']}"
+        except KeyError:
+            # Most likely means that usage_hint is not defined
+            help_text += f"\n`{command['command']}`: {command['description']}"
+    if len(slash_commands) == 0:
+        help_text += "\nNo commands available.\n"
+    else: 
+        help_text += "\n"
+    
+    shortcuts = features.get("shortcuts", [])
+    help_text += "\nShortcuts:"
+    message_shortcuts_text = "Message shortcuts:"
+    global_shortcuts_text = "Global shortcuts:"
+    for shortcut in shortcuts:
+        if shortcut["type"] == "message":
+            message_shortcuts_text += f"\n`{shortcut["name"]}`: {shortcut['description']}"
+        elif shortcut["type"] == "global":
+            global_shortcuts_text += f"\n`{shortcut["name"]}`: {shortcut['description']}"
+    if len(shortcuts) == 0:
+        help_text += "\nNo shortcuts available."
+    else:
+        if message_shortcuts_text != "Message shortcuts:":
+            help_text += f"\n{message_shortcuts_text}"
+        if global_shortcuts_text != "Global shortcuts:":
+            help_text += f"\n{global_shortcuts_text}"
+    
+    respond(help_text)
 
 def main():
     global app
@@ -114,42 +157,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# @app.command("/shroud-help")
-# def help_command(ack, respond: Respond):
-#     ack()
-#     manifest_path = importlib.resources.files(__package__).parent / "manifest.yml"
-#     with open(manifest_path, "r") as f:
-#         features = yaml.safe_load(f)["features"]
-
-#     help_text = "Commands:"
-#     slash_commands = features["slash_commands"]
-#     for command in slash_commands:
-#         try:
-#             help_text += f"\n`{command['command']} {command['usage_hint']}`: {command['description']}"
-#         except KeyError:
-#             # Most likely means that usage_hint is not defined
-#             help_text += f"\n`{command['command']}`: {command['description']}"
-#     if len(slash_commands) == 0:
-#         help_text += "\nNo commands available.\n"
-#     else: 
-#         help_text += "\n"
-    
-#     shortcuts = features["shortcuts"]
-#     help_text += "\nShortcuts:"
-#     message_shortcuts_text = "Message shortcuts:"
-#     global_shortcuts_text = "Global shortcuts:"
-#     for shortcut in shortcuts:
-#         if shortcut["type"] == "message":
-#             message_shortcuts_text += f"\n`{shortcut["name"]}`: {shortcut['description']}"
-#         elif shortcut["type"] == "global":
-#             global_shortcuts_text += f"\n`{shortcut["name"]}`: {shortcut['description']}"
-#     if len(shortcuts) == 0:
-#         help_text += "\nNo shortcuts available."
-#     else:
-#         if message_shortcuts_text != "Message shortcuts:":
-#             help_text += f"\n{message_shortcuts_text}"
-#         if global_shortcuts_text != "Global shortcuts:":
-#             help_text += f"\n{global_shortcuts_text}"
-    
-#     respond(help_text)
