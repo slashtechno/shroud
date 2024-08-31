@@ -26,7 +26,19 @@ settings.validators.register(
             condition=lambda x: re.match(r'^C[A-Z0-9]{10}$', x) is not None,
             messages={"condition": "Must look like C123ABC456"},
             default="C07JX2TK0UX",
-        )
+        ),
+        Validator(
+            "airtable_token",
+            must_exist=True,
+        ),
+        Validator(
+            "airtable_base_id",
+            must_exist=True,
+        ),
+        Validator(
+            "airtable_table_name",
+            must_exist=True,
+        ),
 
     ],
 )
