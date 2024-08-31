@@ -18,6 +18,7 @@ from slack_sdk.errors import SlackApiError
 from slack_bolt.error import BoltUnhandledRequestError
 from shroud import settings
 from shroud.utils import db
+from shroud.utils import utils
 
 dotenv.load_dotenv()
 SLACK_BOT_TOKEN = settings.slack_bot_token
@@ -29,7 +30,9 @@ app = App(token=SLACK_BOT_TOKEN, raise_error_for_unhandled_request=True)
 # https://api.slack.com/events/message.im
 @app.event("message")
 def handle_message(event, say: Say, client: WebClient, respond: Respond):
+    # Handle incoming DMs
     if event.get("channel_type") == "im" and event.get("subtype") is None:
+        # Existing conversation
         if event.get("thread_ts") is not None:
                 try:
                     record = db.get_message_by_dm_ts(event["thread_ts"])["fields"]
@@ -41,6 +44,7 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
                         user=event["user"],
                         text="No message found",
                     )
+        # New conversation
         else:
             forwarded_ts = forward_to_channel(event, client)
             db.save_message_mapping(event["ts"], forwarded_ts, event["channel"])
@@ -49,12 +53,20 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
                 user=event["user"],
                 text="Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.",
             )
+    # Handle incoming messages in channels
     elif (event.get("channel_type") == "group" or event.get("channel_type") == "channel") and event.get("subtype") is None:
+        # We only care about messages that are threads
         if event.get("thread_ts", None) is not None:
             try:
                 record = db.get_message_by_forwarded_ts(event["thread_ts"])["fields"]
-                to_send = f"<@{event['user']}>: {event['text']}"
-                client.chat_postMessage(channel=record["dm_channel"], text=to_send, thread_ts=record["dm_ts"])
+
+                client.chat_postMessage(
+                    channel=record["dm_channel"], 
+                    text=event["text"], 
+                    thread_ts=record["dm_ts"],
+                    username=utils.get_name(event["user"], client),
+                    icon_url=utils.get_profile_picture_url(event["user"], client)
+                    )
             except ValueError:
                 client.chat_postEphemeral(
                     channel=event["channel"],

@@ -9,13 +9,13 @@ features:
 oauth_config:
   scopes:
     bot:
-      - im:history
-      - im:read
-      - im:write
-      - chat:write
-      - channels:join
       - channels:history
+      - channels:join
+      - chat:write
       - groups:history
+      - im:history
+      - chat:write.customize
+      - users:read
 settings:
   event_subscriptions:
     bot_events:
