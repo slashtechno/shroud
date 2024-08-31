@@ -34,8 +34,8 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
     except FileNotFoundError:
         say("JSON file not found")
         return
-    if event.get("channel_type") == "im":
-        if event.get("thread_ts", None) is not None:
+    if event.get("channel_type") == "im" and event.get("subtype") is None:
+        if event.get("thread_ts") is not None:
             # Find where to forward the message  
             for k, v in data.items():
                 if k == event["thread_ts"]:
@@ -43,12 +43,20 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
                     client.chat_postMessage(channel=settings.channel, text=to_send, thread_ts=data[k]["forwarded_ts"])
                     break
             else:
-                respond("No message found", response_type="ephemeral")
+                client.chat_postEphemeral(
+                    channel=event["channel"],
+                    user=event["user"],
+                    text="No message found",
+                )
         else:
             forwarded_ts = forward_to_channel(event, client)
             save_message_mapping(event["ts"], forwarded_ts, event["channel"])
-            respond("Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.", response_type="ephemeral")
-    elif event.get("channel_type") == "group" or event.get("channel_type") == "channel":
+            client.chat_postEphemeral(
+                channel=event["channel"],
+                user=event["user"],
+                text="Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.",
+            )
+    elif (event.get("channel_type") == "group" or event.get("channel_type") == "channel") and event.get("subtype") is None:
         if event.get("thread_ts", None) is not None:
             for k, v in data.items():
                 if data[k]["forwarded_ts"] == event["thread_ts"]:
@@ -56,9 +64,15 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
                     client.chat_postMessage(channel=data[k]["dm_channel"], text=to_send, thread_ts=k)
                     break
             else:
-                respond("No message found", response_type="ephemeral")
+                client.chat_postEphemeral(
+                    channel=event["channel"],
+                    user=event["user"],
+                    text="No message found",
+                )
         else:
             print("Ignoring message as it's not a reply")
+    # else:
+        # print(event)
 
 
 def save_message_mapping(ts, forwarded_ts, dm_channel) -> None:
