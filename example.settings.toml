@@ -1,0 +1,6 @@
+slack_app_token = ""
+slack_bot_token = ""
+airtable_token = ""
+airtable_base_id  = ""
+airtable_table_name = ""
+channel="C123ABC456" # This is an example, replace with your channel ID
