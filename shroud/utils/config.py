@@ -23,8 +23,8 @@ settings.validators.register(
         Validator(
             "channel",
             must_exist=True,
-            condition=lambda x: re.match(r'^C[A-Z0-9]{10}$', x) is not None,
-            messages={"condition": "Must look like C123ABC456"},
+            condition=lambda x: re.match(r'^[CG][A-Z0-9]{10}$', x) is not None,
+            messages={"condition": "Must look like C123ABC456 or G123ABC456"},
             default="C07JX2TK0UX",
         ),
         Validator(
