@@ -44,13 +44,7 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
                     )
         # New conversation
         else:
-            forwarded_ts = forward_to_channel(event, client)
-            db.save_message_mapping(event["ts"], forwarded_ts, event["channel"])
-            client.chat_postEphemeral(
-                channel=event["channel"],
-                user=event["user"],
-                text="Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.",
-            )
+            utils.new_forward(event, client)
     # Handle incoming messages in channels
     elif (event.get("channel_type") == "group" or event.get("channel_type") == "channel") and event.get("subtype") is None:
         # We only care about messages that are threads
@@ -84,9 +78,45 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
 
 
 
-def forward_to_channel(event, client: WebClient, thread_ts=None) -> str:
-    resp = client.chat_postMessage(channel=settings.channel, text=event["text"], thread_ts=thread_ts)
-    return resp.data["ts"]
+
+#######################
+user_selection = {}
+
+# Listener for the dropdown selection
+@app.action("report_forwarding")
+def handle_selection(ack, body):
+    ack()
+    
+    selected_option = body["actions"][0]["selected_option"]["value"]
+    user_id = body["user"]["id"]
+    
+    print(f"User {user_id} selected {selected_option}")
+
+    # Store the user's selection
+    user_selection[user_id] = selected_option
+
+# Listener for the submit button
+@app.action("submit_forwarding")
+def handle_submission(ack, body, say):
+    ack()
+    
+    user_id = body["user"]["id"]
+    # original_message = body["message"]["blocks"][0]["text"]["text"]  # The original report text
+
+    if user_id in user_selection:
+        selected_option = user_selection[user_id]
+
+        if selected_option == "anonymous":
+            # Forward anonymously
+            say("Forwarding anonymously")
+        else:
+            say("Forwarding with username")
+        
+        # Clear the selection
+        del user_selection[user_id]
+    else:
+        say("Please select an option before submitting.")
+#######################
 
 @app.command("/shroud-clean-db")
 def clean_db(ack, respond: Respond, client: WebClient):
