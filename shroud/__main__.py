@@ -16,6 +16,7 @@ from slack_sdk.errors import SlackApiError
 from slack_bolt.error import BoltUnhandledRequestError
 from shroud import settings
 from shroud.utils import db
+from shroud.utils.db import user_selection
 from shroud.utils import utils
 
 dotenv.load_dotenv()
@@ -80,38 +81,55 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
 
 
 #######################
-user_selection = {}
-
 # Listener for the dropdown selection
 @app.action("report_forwarding")
 def handle_selection(ack, body):
     ack()
-    
+
     selected_option = body["actions"][0]["selected_option"]["value"]
     user_id = body["user"]["id"]
-    
-    print(f"User {user_id} selected {selected_option}")
 
     # Store the user's selection
-    user_selection[user_id] = selected_option
+    if user_id in user_selection:
+        user_selection[user_id]["selection"] = selected_option
+        print(f"Set selection for {user_id} to {selected_option}")
 
 # Listener for the submit button
 @app.action("submit_forwarding")
 def handle_submission(ack, body, say):
     ack()
-    
+
     user_id = body["user"]["id"]
-    # original_message = body["message"]["blocks"][0]["text"]["text"]  # The original report text
 
-    if user_id in user_selection:
-        selected_option = user_selection[user_id]
+    if user_id in user_selection and "selection" in user_selection[user_id]:
+        selected_option = user_selection[user_id]["selection"]
+        message_ts = user_selection[user_id]["ts"]
+        channel_id = user_selection[user_id]["channel"]
 
+        # TODO: Forward the message
+        # TODO: Update the message instead of sending a new one
         if selected_option == "anonymous":
             # Forward anonymously
-            say("Forwarding anonymously")
+            say("Anonymously forwarding the report...")
         else:
-            say("Forwarding with username")
-        
+            say("Forwarding the report with your username...")
+
+        # Update the original message to prevent reuse
+        app.client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": "This report has been submitted."}
+                }
+            ],
+            text="Report submitted" 
+        )
+
+        # Optionally, send confirmation to the user
+        say("Your report has been forwarded.")
+
         # Clear the selection
         del user_selection[user_id]
     else:

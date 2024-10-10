@@ -1,11 +1,9 @@
 from slack_sdk import WebClient
 from shroud import settings
 from shroud.utils import db
+from shroud.utils.db import user_selection
 
-# {ts: selected_option}
-selected_option = {
 
-}
 
 def get_profile_picture_url(user_id, client: WebClient) -> str:
     user_info = client.users_info(user=user_id)
@@ -20,7 +18,7 @@ def get_name(user_id, client: WebClient) -> str:
 
 def new_forward(event: dict, client: WebClient) -> str:
     # Post as shroud (anonymous)
-    client.chat_postMessage(
+    result = client.chat_postMessage(
         channel=event["channel"],
         text="Select how this message should be forwarded",
         blocks=[
@@ -65,6 +63,12 @@ def new_forward(event: dict, client: WebClient) -> str:
             },
         ],
     )
+    message_ts = result.data["ts"]
+    channel_id = event["channel"]
+    # Store user data for later
+    user_id = event["user"]
+    user_selection[user_id] = {"ts": message_ts, "channel": channel_id}
+
     print("SKIPPING FORWARDING")
     return
     resp = client.chat_postMessage(channel=settings.channel, text=event["text"])
@@ -77,5 +81,3 @@ def new_forward(event: dict, client: WebClient) -> str:
         user=event["user"],
         text="Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.",
     )
-
-

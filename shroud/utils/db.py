@@ -4,6 +4,9 @@ from shroud import settings
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
+# TODO: Use the actual database instead of an in-memory dictionary
+user_selection = {} 
+
 table = None
 
 
