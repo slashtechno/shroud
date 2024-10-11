@@ -5,7 +5,7 @@ from shroud.utils import db
 def get_message_body_by_ts(ts: str, channel: str, client: WebClient) -> str:
     try:
         message = client.conversations_history(
-            channel=channel, latest=ts, limit=1
+            channel=channel, oldest=ts, inclusive=True, limit=1
         ).data["messages"][0]
         return message["text"]
     except IndexError:
@@ -71,8 +71,6 @@ def begin_forward(event: dict, client: WebClient) -> str:
         ],
     )
     selection_ts = selection_prompt.data["ts"]
-    # Store user data for later
-    print("SKIPPING FORWARDING")
 
     db.save_forward_start(
         dm_ts=event["ts"],

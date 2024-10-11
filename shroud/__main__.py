@@ -30,6 +30,12 @@ app = App(token=SLACK_BOT_TOKEN, raise_error_for_unhandled_request=True)
 # https://api.slack.com/events/message.im
 @app.event("message")
 def handle_message(event, say: Say, client: WebClient, respond: Respond):
+
+    # Ignore messages from the bot itself
+    # if event.get("subtype") == "bot_message":
+    #     return
+    
+
     # Handle incoming DMs
     if event.get("channel_type") == "im" and event.get("subtype") is None:
         # Existing conversation
@@ -58,7 +64,7 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
         # We only care about messages that are threads
         if event.get("thread_ts", None) is not None:
             try:
-                record = db.get_message_ts(event["thread_ts"])["fields"]
+                record = db.get_message_by_ts(event["thread_ts"])["fields"]
 
                 client.chat_postMessage(
                     channel=record["dm_channel"],
@@ -106,13 +112,17 @@ def handle_submission(ack, body, say, client: WebClient):
     message_record = db.get_message_by_ts(body["message"]["ts"])
     user_selection = message_record.get("fields", {}).get("selection", None)
     if user_selection is not None:
-        # TODO: Forward the message
-        # TODO: Update the message instead of sending a new one
-        if user_selection == "anonymous":
-            # Forward anonymously
-            say("Anonymously forwarding the report...")
-        else:
-            say("Forwarding the report with your username...")
+        original_text = utils.get_message_body_by_ts(
+            ts=message_record["fields"]["dm_ts"],
+            channel=message_record["fields"]["dm_channel"],
+            client=client,
+        )
+        # TODO: Update the message instead of sending a new one (perhaps)
+        # if user_selection == "anonymous":
+        #     # Forward anonymously
+        #     say("Anonymously forwarding the report...")
+        # else:
+        #     say("Forwarding the report with your username...")
 
         # Update the original message to prevent reuse
         app.client.chat_update(
@@ -123,20 +133,18 @@ def handle_submission(ack, body, say, client: WebClient):
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": "This report has been submitted.",
+                        "text": "This report has been submitted." if user_selection == "with_username" else "This report has been submitted anonymously."
                     },
                 }
             ],
             text="Report submitted",
         )
 
-        original_text = utils.get_message_body_by_ts(
-            ts=message_record["fields"]["dm_ts"],
-            channel=message_record["fields"]["dm_channel"],
-            client=client,
-        )
         forwarded_ts = client.chat_postMessage(
-            channel=settings.channel, text=original_text
+            channel=settings.channel, text=original_text,
+
+            username=utils.get_name(user_id, client) if user_selection == "with_username" else None,
+            icon_url=utils.get_profile_picture_url(user_id, client) if user_selection == "with_username" else None,
         ).data["ts"]
         db.save_forwarded_ts(
             dm_ts=message_record["fields"]["dm_ts"], forwarded_ts=forwarded_ts
