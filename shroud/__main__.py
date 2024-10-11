@@ -16,7 +16,6 @@ from slack_sdk.errors import SlackApiError
 from slack_bolt.error import BoltUnhandledRequestError
 from shroud import settings
 from shroud.utils import db
-from shroud.utils.db import user_selection
 from shroud.utils import utils
 
 dotenv.load_dotenv()
@@ -34,7 +33,7 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
         # Existing conversation
         if event.get("thread_ts") is not None:
                 try:
-                    record = db.get_message_by_dm_ts(event["thread_ts"])["fields"]
+                    record = db.get_message_by_ts(event["thread_ts"])["fields"]
                     to_send = f"{event['text']}"
                     client.chat_postMessage(channel=settings.channel, text=to_send, thread_ts=record["forwarded_ts"])
                 except ValueError:
@@ -45,13 +44,13 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
                     )
         # New conversation
         else:
-            utils.new_forward(event, client)
+            utils.begin_forward(event, client)
     # Handle incoming messages in channels
     elif (event.get("channel_type") == "group" or event.get("channel_type") == "channel") and event.get("subtype") is None:
         # We only care about messages that are threads
         if event.get("thread_ts", None) is not None:
             try:
-                record = db.get_message_by_forwarded_ts(event["thread_ts"])["fields"]
+                record = db.get_message_ts(event["thread_ts"])["fields"]
 
                 client.chat_postMessage(
                     channel=record["dm_channel"], 
@@ -87,28 +86,25 @@ def handle_selection(ack, body):
     ack()
 
     selected_option = body["actions"][0]["selected_option"]["value"]
-    user_id = body["user"]["id"]
-
-    # Store the user's selection
-    if user_id in user_selection:
-        user_selection[user_id]["selection"] = selected_option
-        print(f"Set selection for {user_id} to {selected_option}")
+    db.save_selection(
+        selection_ts=body["message"]["ts"],
+        selection=selected_option
+    )
 
 # Listener for the submit button
 @app.action("submit_forwarding")
-def handle_submission(ack, body, say):
+def handle_submission(ack, body, say, client: WebClient):
     ack()
 
     user_id = body["user"]["id"]
 
-    if user_id in user_selection and "selection" in user_selection[user_id]:
-        selected_option = user_selection[user_id]["selection"]
-        message_ts = user_selection[user_id]["ts"]
-        channel_id = user_selection[user_id]["channel"]
-
+    # Get the user's selection
+    message_record = db.get_message_by_ts(body["message"]["ts"])
+    user_selection = message_record.get("fields", {}).get("selection", None)
+    if user_selection is not None:
         # TODO: Forward the message
         # TODO: Update the message instead of sending a new one
-        if selected_option == "anonymous":
+        if user_selection == "anonymous":
             # Forward anonymously
             say("Anonymously forwarding the report...")
         else:
@@ -116,8 +112,8 @@ def handle_submission(ack, body, say):
 
         # Update the original message to prevent reuse
         app.client.chat_update(
-            channel=channel_id,
-            ts=message_ts,
+            channel=message_record["fields"]["dm_channel"],
+            ts=message_record["fields"]["selection_ts"],
             blocks=[
                 {
                     "type": "section",
@@ -127,11 +123,17 @@ def handle_submission(ack, body, say):
             text="Report submitted" 
         )
 
-        # Optionally, send confirmation to the user
-        say("Your report has been forwarded.")
-
-        # Clear the selection
-        del user_selection[user_id]
+        original_text = utils.get_message_body_by_ts(ts=message_record["fields"]["dm_ts"], 
+            channel=message_record["fields"]["dm_channel"],
+            client=client
+        )
+        forwarded_ts = client.chat_postMessage(channel=settings.channel, text=original_text).data["ts"]
+        db.save_forwarded_ts(dm_ts=message_record["fields"]["dm_ts"], forwarded_ts=forwarded_ts)
+        client.chat_postEphemeral(
+        channel=message_record["fields"]["dm_channel"],
+        user=user_id,
+        text="Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.",
+    )
     else:
         say("Please select an option before submitting.")
 #######################

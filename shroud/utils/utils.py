@@ -1,9 +1,12 @@
 from slack_sdk import WebClient
-from shroud import settings
 from shroud.utils import db
-from shroud.utils.db import user_selection
 
-
+def get_message_body_by_ts(ts: str, channel: str, client: WebClient) -> str:
+    try:
+        message = client.conversations_history(channel=channel, latest=ts, limit=1).data["messages"][0]
+        return message["text"]
+    except IndexError:
+        return None
 
 def get_profile_picture_url(user_id, client: WebClient) -> str:
     user_info = client.users_info(user=user_id)
@@ -16,10 +19,10 @@ def get_name(user_id, client: WebClient) -> str:
     return user_info.data["user"]["real_name"]
 
 
-def new_forward(event: dict, client: WebClient) -> str:
-    # Post as shroud (anonymous)
-    result = client.chat_postMessage(
-        channel=event["channel"],
+def begin_forward(event: dict, client: WebClient) -> str:
+    channel_id = event["channel"]
+    selection_prompt = client.chat_postMessage(
+        channel=channel_id,
         text="Select how this message should be forwarded",
         blocks=[
             {
@@ -63,21 +66,13 @@ def new_forward(event: dict, client: WebClient) -> str:
             },
         ],
     )
-    message_ts = result.data["ts"]
-    channel_id = event["channel"]
+    selection_ts = selection_prompt.data["ts"]
     # Store user data for later
-    user_id = event["user"]
-    user_selection[user_id] = {"ts": message_ts, "channel": channel_id}
-
     print("SKIPPING FORWARDING")
-    return
-    resp = client.chat_postMessage(channel=settings.channel, text=event["text"])
 
-    # Save mappihng and send confirmation
-    forwarded_ts = resp.data["ts"]
-    db.save_message_mapping(event["ts"], forwarded_ts, event["channel"])
-    client.chat_postEphemeral(
-        channel=event["channel"],
-        user=event["user"],
-        text="Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.",
+    db.save_forward_start(
+        dm_ts=event["ts"],
+        selection_ts=selection_ts,
+        dm_channel=event["channel"],
     )
+
