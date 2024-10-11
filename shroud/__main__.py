@@ -12,6 +12,7 @@ from slack_sdk.web.client import WebClient
 from slack_bolt.context.respond import Respond
 from slack_bolt.context.say import Say
 from slack_sdk.errors import SlackApiError
+
 # To avoid a log message about unhandled requests
 from slack_bolt.error import BoltUnhandledRequestError
 from shroud import settings
@@ -25,6 +26,7 @@ SLACK_APP_TOKEN = settings.slack_app_token
 
 app = App(token=SLACK_BOT_TOKEN, raise_error_for_unhandled_request=True)
 
+
 # https://api.slack.com/events/message.im
 @app.event("message")
 def handle_message(event, say: Say, client: WebClient, respond: Respond):
@@ -32,33 +34,39 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
     if event.get("channel_type") == "im" and event.get("subtype") is None:
         # Existing conversation
         if event.get("thread_ts") is not None:
-                try:
-                    record = db.get_message_by_ts(event["thread_ts"])["fields"]
-                    to_send = f"{event['text']}"
-                    client.chat_postMessage(channel=settings.channel, text=to_send, thread_ts=record["forwarded_ts"])
-                except ValueError:
-                    client.chat_postEphemeral(
-                        channel=event["channel"],
-                        user=event["user"],
-                        text="No message found",
-                    )
+            try:
+                record = db.get_message_by_ts(event["thread_ts"])["fields"]
+                to_send = f"{event['text']}"
+                client.chat_postMessage(
+                    channel=settings.channel,
+                    text=to_send,
+                    thread_ts=record["forwarded_ts"],
+                )
+            except ValueError:
+                client.chat_postEphemeral(
+                    channel=event["channel"],
+                    user=event["user"],
+                    text="No message found",
+                )
         # New conversation
         else:
             utils.begin_forward(event, client)
     # Handle incoming messages in channels
-    elif (event.get("channel_type") == "group" or event.get("channel_type") == "channel") and event.get("subtype") is None:
+    elif (
+        event.get("channel_type") == "group" or event.get("channel_type") == "channel"
+    ) and event.get("subtype") is None:
         # We only care about messages that are threads
         if event.get("thread_ts", None) is not None:
             try:
                 record = db.get_message_ts(event["thread_ts"])["fields"]
 
                 client.chat_postMessage(
-                    channel=record["dm_channel"], 
-                    text=event["text"], 
+                    channel=record["dm_channel"],
+                    text=event["text"],
                     thread_ts=record["dm_ts"],
                     username=utils.get_name(event["user"], client),
-                    icon_url=utils.get_profile_picture_url(event["user"], client)
-                    )
+                    icon_url=utils.get_profile_picture_url(event["user"], client),
+                )
             except ValueError:
                 client.chat_postEphemeral(
                     channel=event["channel"],
@@ -71,12 +79,10 @@ def handle_message(event, say: Say, client: WebClient, respond: Respond):
             user=event["previous_message"]["user"],
             text="It seems you might have updated a message. This bot only supports forwarding messages, at the moment. Thus, edits and deletions will not be forwarded.",
         )
-    else:    
+    else:
         print("Ignoring message event")
     # else:
-        # print(event)
-
-
+    # print(event)
 
 
 #######################
@@ -86,10 +92,8 @@ def handle_selection(ack, body):
     ack()
 
     selected_option = body["actions"][0]["selected_option"]["value"]
-    db.save_selection(
-        selection_ts=body["message"]["ts"],
-        selection=selected_option
-    )
+    db.save_selection(selection_ts=body["message"]["ts"], selection=selected_option)
+
 
 # Listener for the submit button
 @app.action("submit_forwarding")
@@ -117,34 +121,48 @@ def handle_submission(ack, body, say, client: WebClient):
             blocks=[
                 {
                     "type": "section",
-                    "text": {"type": "mrkdwn", "text": "This report has been submitted."}
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "This report has been submitted.",
+                    },
                 }
             ],
-            text="Report submitted" 
+            text="Report submitted",
         )
 
-        original_text = utils.get_message_body_by_ts(ts=message_record["fields"]["dm_ts"], 
+        original_text = utils.get_message_body_by_ts(
+            ts=message_record["fields"]["dm_ts"],
             channel=message_record["fields"]["dm_channel"],
-            client=client
+            client=client,
         )
-        forwarded_ts = client.chat_postMessage(channel=settings.channel, text=original_text).data["ts"]
-        db.save_forwarded_ts(dm_ts=message_record["fields"]["dm_ts"], forwarded_ts=forwarded_ts)
+        forwarded_ts = client.chat_postMessage(
+            channel=settings.channel, text=original_text
+        ).data["ts"]
+        db.save_forwarded_ts(
+            dm_ts=message_record["fields"]["dm_ts"], forwarded_ts=forwarded_ts
+        )
         client.chat_postEphemeral(
-        channel=message_record["fields"]["dm_channel"],
-        user=user_id,
-        text="Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.",
-    )
+            channel=message_record["fields"]["dm_channel"],
+            user=user_id,
+            text="Message content forwarded. Any replies to the forwarded message will be sent back to you as a threaded reply.",
+        )
     else:
         say("Please select an option before submitting.")
+
+
 #######################
+
 
 @app.command("/shroud-clean-db")
 def clean_db(ack, respond: Respond, client: WebClient):
     print("Cleaning database")
     ack()
     db.clean_database(client)
-    respond("Removed any records where the DM or the forwarded message no longer exists.")
-    print("Cleaned database")   
+    respond(
+        "Removed any records where the DM or the forwarded message no longer exists."
+    )
+    print("Cleaned database")
+
 
 # https://github.com/slackapi/bolt-python/issues/299#issuecomment-823590042
 @app.error
@@ -160,6 +178,7 @@ def handle_errors(error, body, respond: Respond):
         except SlackApiError as e:
             print(f"Error sending message: {e.response['error']}")
         return BoltResponse(status=500, body="Something Wrong")
+
 
 @app.command("/shroud-help")
 def help_command(ack, respond: Respond):
@@ -178,18 +197,22 @@ def help_command(ack, respond: Respond):
             help_text += f"\n`{command['command']}`: {command['description']}"
     if len(slash_commands) == 0:
         help_text += "\nNo commands available.\n"
-    else: 
+    else:
         help_text += "\n"
-    
+
     shortcuts = features.get("shortcuts", [])
     help_text += "\nShortcuts:"
     message_shortcuts_text = "Message shortcuts:"
     global_shortcuts_text = "Global shortcuts:"
     for shortcut in shortcuts:
         if shortcut["type"] == "message":
-            message_shortcuts_text += f"\n`{shortcut["name"]}`: {shortcut['description']}"
+            message_shortcuts_text += (
+                f"\n`{shortcut["name"]}`: {shortcut['description']}"
+            )
         elif shortcut["type"] == "global":
-            global_shortcuts_text += f"\n`{shortcut["name"]}`: {shortcut['description']}"
+            global_shortcuts_text += (
+                f"\n`{shortcut["name"]}`: {shortcut['description']}"
+            )
     if len(shortcuts) == 0:
         help_text += "\nNo shortcuts available."
     else:
@@ -197,8 +220,9 @@ def help_command(ack, respond: Respond):
             help_text += f"\n{message_shortcuts_text}"
         if global_shortcuts_text != "Global shortcuts:":
             help_text += f"\n{global_shortcuts_text}"
-    
+
     respond(help_text)
+
 
 def main():
     global app

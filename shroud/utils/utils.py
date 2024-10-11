@@ -1,12 +1,16 @@
 from slack_sdk import WebClient
 from shroud.utils import db
 
+
 def get_message_body_by_ts(ts: str, channel: str, client: WebClient) -> str:
     try:
-        message = client.conversations_history(channel=channel, latest=ts, limit=1).data["messages"][0]
+        message = client.conversations_history(
+            channel=channel, latest=ts, limit=1
+        ).data["messages"][0]
         return message["text"]
     except IndexError:
         return None
+
 
 def get_profile_picture_url(user_id, client: WebClient) -> str:
     user_info = client.users_info(user=user_id)
@@ -75,4 +79,3 @@ def begin_forward(event: dict, client: WebClient) -> str:
         selection_ts=selection_ts,
         dm_channel=event["channel"],
     )
-
