@@ -71,7 +71,7 @@ def begin_forward(event: dict, client: WebClient) -> str:
         ],
     )
     selection_ts = selection_prompt.data["ts"]
-
+    
     db.save_forward_start(
         dm_ts=event["ts"],
         selection_ts=selection_ts,

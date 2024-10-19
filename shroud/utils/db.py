@@ -55,6 +55,7 @@ def clean_database(client: WebClient) -> None:
             for m in messages:
                 if m.get("subtype") == "tombstone":
                     table.delete(full_record["id"])
+                    break
 
 
 def save_forward_start(dm_ts, selection_ts, dm_channel) -> None:
