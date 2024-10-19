@@ -1,3 +1,4 @@
+**This project has been moved to [hackclub/shroud](https://github.com/hackclub/shroud)**
 # Shroud  
 A Slack bot allowing for anonymous reports to be sent whilst allowing for bidirectional communication between the reporter and the recipient.  
 [![Demo](shroud.gif)](shroud.mp4)
