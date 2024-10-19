@@ -9,7 +9,7 @@ A Slack bot allowing for anonymous reports to be sent whilst allowing for bidire
 
 ### Setup
 1. Create a new Slack app at [api.slack.com/apps](https://api.slack.com/apps)  
-2. Create an Airtable with three columns: `dm_ts`, `forwarded_ts`, and `dm_channel`  
+2. Create an Airtable with three columns: `dm_ts`, `forwarded_ts`, `selection`, `selection_ts`, and `dm_channel`  
 3. Use the `manifest.yml` file to create it  
 4. Install the app to your workspace  
 5. Clone the repository  

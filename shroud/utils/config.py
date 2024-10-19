@@ -1,5 +1,6 @@
 from dynaconf import Dynaconf, Validator
 import re
+
 settings = Dynaconf(
     envvar_prefix="SHROUD",
     load_dotenv=True,
@@ -7,7 +8,7 @@ settings = Dynaconf(
     merge_enabled=True,
 )
 settings.validators.register(
-        validators=[
+    validators=[
         Validator(
             "slack_bot_token",
             must_exist=True,
@@ -23,7 +24,7 @@ settings.validators.register(
         Validator(
             "channel",
             must_exist=True,
-            condition=lambda x: re.match(r'^[CG][A-Z0-9]{10}$', x) is not None,
+            condition=lambda x: re.match(r"^[CG][A-Z0-9]{10}$", x) is not None,
             messages={"condition": "Must look like C123ABC456 or G123ABC456"},
             default="C07JX2TK0UX",
         ),
@@ -39,7 +40,6 @@ settings.validators.register(
             "airtable_table_name",
             must_exist=True,
         ),
-
     ],
 )
 
