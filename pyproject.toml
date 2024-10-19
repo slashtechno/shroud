@@ -9,7 +9,7 @@ scripts = { shroud = "shroud.__main__:main" }
 include = ["manifest.yml"]
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "3.12.0"
 python-dotenv = "^1.0.1"
 slack-bolt = "^1.20.0"
 dynaconf = "^3.2.6"

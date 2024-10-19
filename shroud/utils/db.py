@@ -1,8 +1,7 @@
 from pyairtable import Api, Table
-from pyairtable.formulas import match, OR
+from pyairtable.formulas import match
 from shroud import settings
 from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 
 
 table = None
